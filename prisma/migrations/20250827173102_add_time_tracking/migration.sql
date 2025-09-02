@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Task" ADD COLUMN "actualTime" INTEGER DEFAULT 0;
+ALTER TABLE "Task" ADD COLUMN "estimatedTime" INTEGER;
