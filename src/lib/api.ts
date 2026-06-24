@@ -9,6 +9,7 @@ import type {
   CreateTagData,
   CreateCommentData,
   TaskFilters,
+  TaskStats,
   ApiResponse
 } from '@/types'
 
@@ -24,10 +25,21 @@ export const taskApi = {
     const params = new URLSearchParams()
     if (filters?.projectId) params.append('projectId', filters.projectId)
     if (filters?.completed !== undefined) params.append('completed', String(filters.completed))
+    if (filters?.status) params.append('status', filters.status)
     if (filters?.priority) params.append('priority', filters.priority)
     if (filters?.tagId) params.append('tagId', filters.tagId)
+    if (filters?.search) params.append('search', filters.search)
+    if (filters?.dueDate?.from) params.append('dueDateFrom', filters.dueDate.from)
+    if (filters?.dueDate?.to) params.append('dueDateTo', filters.dueDate.to)
 
-    const { data } = await api.get(`/tasks?${params.toString()}`)
+    const query = params.toString()
+    const { data } = await api.get(query ? `/tasks?${query}` : '/tasks')
+    return data
+  },
+
+  // 获取任务统计
+  getStats: async (): Promise<TaskStats> => {
+    const { data } = await api.get('/tasks/stats')
     return data
   },
 
