@@ -33,6 +33,7 @@ interface TaskListProps {
   onEditTask: (task: TaskWithRelations) => void
   onViewTask: (task: TaskWithRelations) => void
   onTasksChange?: () => void
+  refreshKey?: number
   filters?: TaskFilters
   onFiltersChange?: (filters: TaskFilters) => void
 }
@@ -42,6 +43,7 @@ export default function TaskList({
   onEditTask,
   onViewTask,
   onTasksChange,
+  refreshKey = 0,
   filters = {},
   onFiltersChange,
 }: TaskListProps) {
@@ -147,10 +149,10 @@ export default function TaskList({
     }
   }
 
-  // 初始加载和筛选器变化时重新加载
+  // 初始加载、筛选器变化、外部保存任务后重新加载
   useEffect(() => {
     loadTasks()
-  }, [filters])
+  }, [filters, refreshKey])
 
   if (loading) {
     return (
