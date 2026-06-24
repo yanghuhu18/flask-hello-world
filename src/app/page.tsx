@@ -56,6 +56,7 @@ export default function Home() {
   const [activeView, setActiveView] = useState<string>('inbox')
   const [stats, setStats] = useState<TaskStats>(EMPTY_STATS)
   const [statsLoading, setStatsLoading] = useState(false)
+  const [taskListRefreshKey, setTaskListRefreshKey] = useState(0)
 
   const loadStats = useCallback(async () => {
     try {
@@ -90,8 +91,9 @@ export default function Home() {
   }
 
   const handleTaskFormSuccess = (task: TaskWithRelations) => {
-    // 任务创建/更新成功后刷新统计数据
+    // 任务创建/更新成功后刷新统计数据和列表
     loadStats()
+    setTaskListRefreshKey(prev => prev + 1)
   }
 
   const today = new Date()
@@ -358,6 +360,7 @@ export default function Home() {
               onEditTask={handleEditTask}
               onViewTask={handleViewTask}
               onTasksChange={loadStats}
+              refreshKey={taskListRefreshKey}
               filters={filters}
               onFiltersChange={setFilters}
             />
