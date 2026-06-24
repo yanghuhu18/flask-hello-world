@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
-import { TaskWithRelations, TaskFilters } from '@/types'
+import React, { useCallback, useEffect, useState } from 'react'
+import { TaskWithRelations, TaskFilters, TaskStats } from '@/types'
+import { taskApi } from '@/lib/api'
 import TaskList from '@/components/tasks/TaskList'
 import TaskForm from '@/components/tasks/TaskForm'
 import { Toaster } from '@/components/ui/sonner'
@@ -26,14 +27,52 @@ import {
   Search,
   Plus,
   Menu,
-  Timer
+  Timer,
+  AlertTriangle,
+  TrendingUp
 } from 'lucide-react'
+
+const EMPTY_STATS: TaskStats = {
+  total: 0,
+  completed: 0,
+  active: 0,
+  inProgress: 0,
+  overdue: 0,
+  dueToday: 0,
+  upcoming: 0,
+  completionRate: 0,
+  totalEstimatedMinutes: 0,
+  totalActualMinutes: 0,
+  projectCount: 0,
+  tagCount: 0,
+  urgentOpen: 0,
+  highOpen: 0,
+}
 
 export default function Home() {
   const [selectedTask, setSelectedTask] = useState<TaskWithRelations | null>(null)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [filters, setFilters] = useState<TaskFilters>({})
   const [activeView, setActiveView] = useState<string>('inbox')
+  const [stats, setStats] = useState<TaskStats>(EMPTY_STATS)
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [taskListRefreshKey, setTaskListRefreshKey] = useState(0)
+
+  const loadStats = useCallback(async () => {
+    try {
+      setStatsLoading(true)
+      const statsData = await taskApi.getStats()
+      setStats(statsData)
+    } catch (error) {
+      console.error('Failed to load stats:', error)
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadStats()
+  }, [loadStats])
 
   // 处理任务操作
   const handleCreateTask = () => {
@@ -52,14 +91,19 @@ export default function Home() {
   }
 
   const handleTaskFormSuccess = (task: TaskWithRelations) => {
-    // 任务创建/更新成功后刷新列表
-    // TaskList 组件会自动重新加载数据
+    // 任务创建/更新成功后刷新统计数据和列表
+    loadStats()
+    setTaskListRefreshKey(prev => prev + 1)
   }
+
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
+  const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999).toISOString()
 
   // 预设筛选器
   const presetFilters = {
     inbox: {},
-    today: { dueDate: { from: new Date().toISOString(), to: new Date().toISOString() } },
+    today: { dueDate: { from: todayStart, to: todayEnd }, completed: false },
     upcoming: { completed: false },
     completed: { completed: true },
   }
@@ -75,25 +119,76 @@ export default function Home() {
       id: 'inbox',
       label: '收件箱',
       icon: Inbox,
-      count: 0,
+      count: stats.active,
     },
     {
       id: 'today',
       label: '今天',
       icon: Calendar,
-      count: 0,
+      count: stats.dueToday,
     },
     {
       id: 'upcoming',
       label: '即将到期',
       icon: Star,
-      count: 0,
+      count: stats.upcoming,
     },
     {
       id: 'completed',
       label: '已完成',
       icon: CheckSquare,
-      count: 0,
+      count: stats.completed,
+    },
+  ]
+
+  const statCards = [
+    {
+      label: '总任务',
+      value: stats.total,
+      helper: `${stats.active} 个待处理`,
+      icon: Inbox,
+      iconClassName: 'bg-blue-100 text-blue-600',
+      valueClassName: 'text-gray-900',
+    },
+    {
+      label: '已完成',
+      value: stats.completed,
+      helper: `完成率 ${stats.completionRate}%`,
+      icon: CheckSquare,
+      iconClassName: 'bg-green-100 text-green-600',
+      valueClassName: 'text-green-600',
+    },
+    {
+      label: '进行中',
+      value: stats.inProgress,
+      helper: `${stats.urgentOpen + stats.highOpen} 个高优先级`,
+      icon: TrendingUp,
+      iconClassName: 'bg-orange-100 text-orange-600',
+      valueClassName: 'text-orange-600',
+    },
+    {
+      label: '逾期任务',
+      value: stats.overdue,
+      helper: `今天到期 ${stats.dueToday} 个`,
+      icon: AlertTriangle,
+      iconClassName: 'bg-red-100 text-red-600',
+      valueClassName: stats.overdue > 0 ? 'text-red-600' : 'text-gray-900',
+    },
+    {
+      label: '项目 / 标签',
+      value: `${stats.projectCount}/${stats.tagCount}`,
+      helper: '用于任务归类',
+      icon: BarChart3,
+      iconClassName: 'bg-purple-100 text-purple-600',
+      valueClassName: 'text-purple-600',
+    },
+    {
+      label: '记录时间',
+      value: `${Math.round(stats.totalActualMinutes / 60)}h`,
+      helper: `预计 ${Math.round(stats.totalEstimatedMinutes / 60)}h`,
+      icon: Timer,
+      iconClassName: 'bg-cyan-100 text-cyan-600',
+      valueClassName: 'text-cyan-600',
     },
   ]
 
@@ -231,7 +326,7 @@ export default function Home() {
                   {sidebarItems.find(item => item.id === activeView)?.label || '收件箱'}
                 </h2>
                 <p className="text-sm text-gray-500">
-                  管理你的任务和项目
+                  管理你的任务和项目{statsLoading ? ' · 统计刷新中...' : ''}
                 </p>
               </div>
             </div>
@@ -239,61 +334,33 @@ export default function Home() {
 
           {/* 任务列表 */}
           <main className="flex-1 p-6 overflow-auto">
-            {/* 新功能：任务统计卡片 */}
-            <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-lg p-4 shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">总任务</p>
-                    <p className="text-2xl font-bold text-gray-900">10</p>
+            {/* 任务统计卡片 */}
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
+              {statCards.map((card) => {
+                const Icon = card.icon
+                return (
+                  <div key={card.label} className="bg-white rounded-lg p-4 shadow-sm border">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">{card.label}</p>
+                        <p className={`text-2xl font-bold ${card.valueClassName}`}>{card.value}</p>
+                        <p className="text-xs text-gray-500 mt-1">{card.helper}</p>
+                      </div>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.iconClassName}`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Inbox className="h-4 w-4 text-blue-600" />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white rounded-lg p-4 shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">已完成</p>
-                    <p className="text-2xl font-bold text-green-600">4</p>
-                  </div>
-                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                    <CheckSquare className="h-4 w-4 text-green-600" />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white rounded-lg p-4 shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">进行中</p>
-                    <p className="text-2xl font-bold text-orange-600">6</p>
-                  </div>
-                  <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                    <Star className="h-4 w-4 text-orange-600" />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white rounded-lg p-4 shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">完成率</p>
-                    <p className="text-2xl font-bold text-purple-600">40%</p>
-                  </div>
-                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <BarChart3 className="h-4 w-4 text-purple-600" />
-                  </div>
-                </div>
-              </div>
+                )
+              })}
             </div>
 
             <TaskList
               onCreateTask={handleCreateTask}
               onEditTask={handleEditTask}
               onViewTask={handleViewTask}
+              onTasksChange={loadStats}
+              refreshKey={taskListRefreshKey}
               filters={filters}
               onFiltersChange={setFilters}
             />

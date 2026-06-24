@@ -3,14 +3,24 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+const parseDate = (value: string | null) => {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 // GET - 获取所有任务
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const projectId = searchParams.get('projectId')
     const completed = searchParams.get('completed')
+    const status = searchParams.get('status')
     const priority = searchParams.get('priority')
     const tagId = searchParams.get('tagId')
+    const search = searchParams.get('search')?.trim()
+    const dueDateFrom = parseDate(searchParams.get('dueDateFrom'))
+    const dueDateTo = parseDate(searchParams.get('dueDateTo'))
     const userId = '1' // TODO: 从认证中获取实际用户ID
 
     const where: any = {
@@ -25,6 +35,10 @@ export async function GET(request: NextRequest) {
       where.completed = completed === 'true'
     }
 
+    if (status) {
+      where.status = status
+    }
+
     if (priority) {
       where.priority = priority
     }
@@ -35,6 +49,21 @@ export async function GET(request: NextRequest) {
           tagId: tagId
         }
       }
+    }
+
+    if (search) {
+      where.OR = [
+        { title: { contains: search } },
+        { description: { contains: search } },
+        { project: { name: { contains: search } } },
+        { tags: { some: { tag: { name: { contains: search } } } } }
+      ]
+    }
+
+    if (dueDateFrom || dueDateTo) {
+      where.dueDate = {}
+      if (dueDateFrom) where.dueDate.gte = dueDateFrom
+      if (dueDateTo) where.dueDate.lte = dueDateTo
     }
 
     const tasks = await prisma.task.findMany({
@@ -58,6 +87,7 @@ export async function GET(request: NextRequest) {
       orderBy: [
         { completed: 'asc' },
         { order: 'asc' },
+        { dueDate: 'asc' },
         { createdAt: 'desc' }
       ]
     })
@@ -87,6 +117,7 @@ export async function POST(request: NextRequest) {
       parentId,
       repeatType = 'NONE',
       repeatValue,
+      estimatedTime,
       tagIds = []
     } = body
 
@@ -105,6 +136,7 @@ export async function POST(request: NextRequest) {
         parentId,
         repeatType,
         repeatValue,
+        estimatedTime,
         userId,
         tags: {
           create: tagIds.map((tagId: string) => ({

@@ -85,6 +85,7 @@ export interface ApiResponse<T = any> {
 export interface TaskFilters {
   projectId?: string
   completed?: boolean
+  status?: TaskStatus
   priority?: Priority
   tagId?: string
   search?: string
@@ -92,6 +93,24 @@ export interface TaskFilters {
     from?: string
     to?: string
   }
+}
+
+// 任务统计类型
+export interface TaskStats {
+  total: number
+  completed: number
+  active: number
+  inProgress: number
+  overdue: number
+  dueToday: number
+  upcoming: number
+  completionRate: number
+  totalEstimatedMinutes: number
+  totalActualMinutes: number
+  projectCount: number
+  tagCount: number
+  urgentOpen: number
+  highOpen: number
 }
 
 // 排序选项

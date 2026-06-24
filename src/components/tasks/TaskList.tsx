@@ -32,6 +32,8 @@ interface TaskListProps {
   onCreateTask: () => void
   onEditTask: (task: TaskWithRelations) => void
   onViewTask: (task: TaskWithRelations) => void
+  onTasksChange?: () => void
+  refreshKey?: number
   filters?: TaskFilters
   onFiltersChange?: (filters: TaskFilters) => void
 }
@@ -40,6 +42,8 @@ export default function TaskList({
   onCreateTask,
   onEditTask,
   onViewTask,
+  onTasksChange,
+  refreshKey = 0,
   filters = {},
   onFiltersChange,
 }: TaskListProps) {
@@ -60,6 +64,7 @@ export default function TaskList({
       setLoading(true)
       const tasksData = await taskApi.getTasks(filters)
       setTasks(tasksData)
+      onTasksChange?.()
     } catch (error) {
       console.error('Failed to load tasks:', error)
       toast.error('加载任务失败')
@@ -79,6 +84,7 @@ export default function TaskList({
           task.id === id ? updatedTask : task
         )
       )
+      onTasksChange?.()
       
       toast.success(completed ? '任务已完成' : '任务已标记为未完成')
     } catch (error) {
@@ -95,6 +101,7 @@ export default function TaskList({
       setUpdating(true)
       await taskApi.deleteTask(id)
       setTasks(prev => prev.filter(task => task.id !== id))
+      onTasksChange?.()
       toast.success('任务已删除')
     } catch (error) {
       console.error('Failed to delete task:', error)
@@ -132,6 +139,7 @@ export default function TaskList({
       }))
 
       await taskApi.reorderTasks(updates)
+      onTasksChange?.()
       toast.success('任务顺序已更新')
     } catch (error) {
       console.error('Failed to reorder tasks:', error)
@@ -141,10 +149,10 @@ export default function TaskList({
     }
   }
 
-  // 初始加载和筛选器变化时重新加载
+  // 初始加载、筛选器变化、外部保存任务后重新加载
   useEffect(() => {
     loadTasks()
-  }, [filters])
+  }, [filters, refreshKey])
 
   if (loading) {
     return (
